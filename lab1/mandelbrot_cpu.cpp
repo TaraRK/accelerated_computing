@@ -41,7 +41,52 @@ void mandelbrot_cpu_scalar(uint32_t img_size, uint32_t max_iters, uint32_t *out)
 /// <--- your code here --->
 
 void mandelbrot_cpu_vector(uint32_t img_size, uint32_t max_iters, uint32_t *out) {
-    // TODO: Implement this function.
+    const __m512 x_scale = _mm512_set1_ps(2.5f / float(img_size));
+    const __m512 y_scale = _mm512_set1_ps(2.5f / float(img_size));
+    const __m512 x_shift = _mm512_set1_ps(-2.0f);
+    const __m512 y_shift = _mm512_set1_ps(-1.25f);
+
+    const __m512 four = _mm512_set1_ps(4.0f);
+    const __m512i one = _mm512_set1_epi32(1);
+
+    __m512 j_vec = _mm512_set_ps(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
+
+    for (uint32_t i = 0; i < img_size; i++){
+        __m512 cy = _mm512_fmadd_ps(_mm512_set1_ps(float(i)), y_scale, y_shift);
+        for (uint32_t j = 0; j < img_size; j +=16){
+            __m512 cx = _mm512_fmadd_ps(_mm512_add_ps(j_vec, _mm512_set1_ps(float(j))), x_scale, x_shift);
+            __m512 x = _mm512_setzero_ps();
+            __m512 y = _mm512_setzero_ps();
+            __m512 x2 = _mm512_setzero_ps();
+            __m512 y2 = _mm512_setzero_ps();
+            
+            __m512i iters = _mm512_setzero_si512();
+            __mmask16 mask = 0xFFFF; // 16-bit mask
+
+            for (uint32_t iter = 0; iter < max_iters; ++iter){
+                __m512 xy = _mm512_mul_ps(x, y);
+
+                y = _mm512_fmadd_ps(_mm512_add_ps(x, x), y, cy);
+                x = _mm512_add_ps(_mm512_sub_ps(x2, y2), cx);
+
+                x2 = _mm512_mul_ps(x, x);
+                y2 = _mm512_mul_ps(y, y);
+
+                __mmask16 cmp_mask = _mm512_cmp_ps_mask(_mm512_add_ps(x2, y2), four, _CMP_LE_OQ);
+                mask &= cmp_mask;
+
+                if (mask == 0) break;  // All pixels have escaped
+
+                iters = _mm512_mask_add_epi32(iters, mask, iters, one);
+
+            }
+
+            _mm512_storeu_si512(out + i * img_size + j, iters);
+
+        }
+    }
+
+    
 }
 
 /// <--- /your code here --->
