@@ -60,7 +60,33 @@ __global__ void mandelbrot_gpu_vector(
     uint32_t max_iters,
     uint32_t *out /* pointer to GPU memory */
 ) {
-    /* your (GPU) code here... */
+    uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
+    uint32_t y = blockIdx.y * blockDim.y + threadIdx.y;
+    
+    // Ensure we're within the image bounds
+    if (x < img_size && y < img_size) {
+        // Calculate the complex plane coordinates
+        float cx = (float(x) / float(img_size)) * 2.5f - 2.0f;
+        float cy = (float(y) / float(img_size)) * 2.5f - 1.25f;
+
+        float zx = 0.0f;
+        float zy = 0.0f;
+        float zx2 = 0.0f;
+        float zy2 = 0.0f;
+        uint32_t iters = 0;
+
+        // Mandelbrot iteration
+        while (zx2 + zy2 <= 4.0f && iters < max_iters) {
+            zy = 2 * zx * zy + cy;
+            zx = zx2 - zy2 + cx;
+            zx2 = zx * zx;
+            zy2 = zy * zy;
+            ++iters;
+        }
+
+        // Write the result to the output buffer
+        out[y * img_size + x] = iters;
+    }
 }
 
 void launch_mandelbrot_gpu_vector(
@@ -68,7 +94,13 @@ void launch_mandelbrot_gpu_vector(
     uint32_t max_iters,
     uint32_t *out /* pointer to GPU memory */
 ) {
-    /* your (CPU) code here... */
+    // Calculate grid and block dimensions
+    dim3 block(32, 32);  // 32x32 threads per block
+    dim3 grid((img_size + block.x - 1) / block.x, (img_size + block.y - 1) / block.y);
+
+    // Launch the kernel
+    mandelbrot_gpu_vector<<<grid, block>>>(img_size, max_iters, out);
+
 }
 
 /// <--- /your code here --->
